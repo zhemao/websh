@@ -36,13 +36,16 @@ int handle_upload(void * ptr, size_t size, size_t nmemb, void * userdata){
 	int len = size * nmemb;
 	upload_buffer * upbuf = (upload_buffer*)userdata;
 	
+	/* if we can copy over the entire length, do so */
 	if(upbuf->index + len < upbuf->length){
 		memcpy(ptr, upbuf->data, len);
 		upbuf->index += len;
+	/* otherwise, if end of string hasn't been reached, copy the remainder */
 	} else if(upbuf->index < upbuf->length){
 		len = upbuf->length - upbuf->index;
 		upbuf->index = upbuf->length;
 		memcpy(ptr, upbuf->data, len);
+	/* otherwise, return 0 to signal EOF */
 	} else {
 		len = 0;
 	}
@@ -62,25 +65,29 @@ void handle_input(char * url, char * input){
 		destroy_vector(vec);
 		return;
 	}
-		
+	
+	/* init some stuff */
 	curl = curl_easy_init();
 	com = vector_get(vec, 0);
 	path = vector_get(vec, 1);
 	str_upper(com);
 	
+	/* get the full_url by concatenating url and path */	
 	full_url = (char*)malloc(strlen(url)+strlen(path)+1);
 	strcpy(full_url, url);
 	strcat(full_url, path);
 	
+	/* pass some initial options to curl */
 	curl_easy_setopt(curl, CURLOPT_URL, full_url);
 	curl_easy_setopt(curl, CURLOPT_HEADER, 1);
 	
+	/* handle specific request types */
 	if(strcmp(com, "GET")==0){
 		curl_easy_setopt(curl, CURLOPT_HTTPGET, 1);
 	} else if(strcmp(com, "POST")==0){
 		curl_easy_setopt(curl, CURLOPT_POST, 1);
 		data = linenoise("...");
-		curl_easy_setopt(curl, CURLOPT_COPYPOSTFIELDS, data);
+		curl_easy_setopt(curl, CURLOPT_POSTFIELDS, data);
 	} else if (strcmp(com, "HEAD")==0){
 		curl_easy_setopt(curl, CURLOPT_NOBODY, 1);
 	} else if (strcmp(com, "PUT")==0){
@@ -103,9 +110,10 @@ void handle_input(char * url, char * input){
 	/* print a newline incase the response has no ending newline */
 	printf("\n");
 	
+	/* free data if needed */
 	if(data != NULL)
 		free(data);
-		
+	/* clean up everything else */
 	free(full_url);
 	curl_easy_cleanup(curl);
 	destroy_vector(vec);
