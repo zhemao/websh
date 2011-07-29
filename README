@@ -1,14 +1,24 @@
 Websh - An interactive shell for the World Wide Web
 ====================================================
 
-Websh is an interactive HTTP client based on libCurl. It currently allows HTTP
-POST and HTTP GET requests. 
+Websh is an interactive HTTP client based on libCurl. It supports many HTTP 
+methods, including GET, POST, PUT, HEAD, and DELETE.
+
+What is the purpose of such a tool, you may ask? Why couldn't I simply use a
+webbrowser? Currently, I envision two uses for this program.
+
+1) Interacting with database servers that speak the HTTP protocol. CouchDB and
+Kyoto Tycoon are good examples.
+
+2) Interacting with websites' HTTP apis. 
 
 Dependencies:
-libCurl
+libcurl
 
 License:
 Websh includes Linenoise, a BSD-licensed readline replacement originally 
 authored by Salvatore Sanfilippo (AKA antirez). 
 
 Websh is also released under a BSD License, reproduced in LICENSE.
+
+Websh is inspired by Alexis Seller's NodeJS module http-console.
