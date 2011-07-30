@@ -1,4 +1,4 @@
-OBJS=vector.o strutils.o linenoise.o
+OBJS=map.o vector.o strutils.o linenoise.o
 OPTS=-ggdb
 LDFLAGS=-lcurl
 
@@ -10,6 +10,9 @@ vector.o: vector.h vector.c
 
 strutils.o: strutils.h strutils.c
 	gcc $(OPTS) -c strutils.c
+
+map.o: map.h map.c
+	gcc $(OPTS) -c map.c
 
 linenoise.o: linenoise.h linenoise.c
 	gcc $(OPTS) -c linenoise.c

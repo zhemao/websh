@@ -14,6 +14,8 @@ int main(int argc, char *argv[]) {
 		exit(EXIT_FAILURE);
 	}
 	
+	headers = create_map();
+	
 	url = argv[1];
 	char prompt[strlen(url)+3];
 	sprintf(prompt, "%s> ", url);
@@ -53,13 +55,111 @@ int handle_upload(void * ptr, size_t size, size_t nmemb, void * userdata){
 	return len;
 }
 
+void perform_request(CURL * curl, char * url, char * path){
+	char * full_url;
+	int i, line_len;
+	char * line;
+	char * header, * value;
+	struct curl_slist *slist=NULL;
+	
+	full_url = (char*)malloc(strlen(url)+strlen(path)+1);
+	strcpy(full_url, url);
+	strcat(full_url, path);
+	
+	curl_easy_setopt(curl, CURLOPT_URL, full_url);
+	curl_easy_setopt(curl, CURLOPT_HEADER, 1);
+	
+	/* attach all the headers */
+	for(i=0; i<headers->keys->length; i++){
+		header = vector_get(headers->keys, i);
+		value = map_get(headers, header);
+		line_len = strlen(header)+strlen(value)+3;
+		line = (char*)calloc(line_len, sizeof(char));
+		sprintf(line, "%s: %s", header, value);
+		slist = curl_slist_append(slist, line);
+		free(line);
+	}
+	
+	curl_easy_setopt(curl, CURLOPT_HTTPHEADER, slist);
+	
+	curl_easy_perform(curl);
+	/* print a newline incase the response has no ending newline */
+	printf("\n");
+	
+	/* cleanup */
+	curl_slist_free_all(slist);
+	free(full_url);
+}
+
+void prepare_get(CURL * curl){
+	curl_easy_setopt(curl, CURLOPT_HTTPGET, 1);
+}
+
+char * prepare_post(CURL * curl){
+	char * data;
+	curl_easy_setopt(curl, CURLOPT_POST, 1);
+	data = linenoise("...");
+	curl_easy_setopt(curl, CURLOPT_POSTFIELDS, data);
+	return data;
+}
+
+char * prepare_put(CURL * curl, upload_buffer * upbuf){
+	char * data;
+	
+	curl_easy_setopt(curl, CURLOPT_UPLOAD, 1);
+	data = linenoise("...");
+	upbuf->data = data;
+	upbuf->index = 0;
+	upbuf->length = strlen(data);
+	curl_easy_setopt(curl, CURLOPT_READDATA, upbuf);
+	curl_easy_setopt(curl, CURLOPT_READFUNCTION, handle_upload);
+	
+	return data;
+}
+
+void prepare_head(CURL * curl){
+	curl_easy_setopt(curl, CURLOPT_NOBODY, 1);
+}
+
+void prepare_delete(CURL * curl){
+	curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "DELETE");
+}
+
+void setheader(vector * vec){
+	char * header, * value;
+	vector * subvec;
+	if(vec->length > 2){
+		header = vector_get(vec, 1);
+		subvec = subvector(vec, 2, vec->length);
+		value = str_join((char**)subvec->data, "", subvec->length);
+		map_put(headers, header, value, strlen(value)+1);
+		destroy_vector(subvec);
+		free(value);
+	}
+}
+
+void getheader(vector * vec){
+	char * header, * value;
+	header = vector_get(vec, 1);
+	value = map_get(headers, header);
+	if(value!=NULL)
+		printf("%s\n", value);
+}
+
+void delheader(vector * vec){
+	char * header;
+	header = vector_get(vec, 1);
+	map_remove(headers, header);
+}
+
 void handle_input(char * url, char * input){
 	vector * vec = str_split(input, " ");
 	CURL * curl;
 	char *com, *path;
 	char *data = NULL;
-	char * full_url;
 	upload_buffer upbuf;
+	
+	int perform = 1;
 	
 	if(vec->length < 2){
 		destroy_vector(vec);
@@ -69,51 +169,44 @@ void handle_input(char * url, char * input){
 	/* init some stuff */
 	curl = curl_easy_init();
 	com = vector_get(vec, 0);
-	path = vector_get(vec, 1);
-	str_upper(com);
-	
-	/* get the full_url by concatenating url and path */	
-	full_url = (char*)malloc(strlen(url)+strlen(path)+1);
-	strcpy(full_url, url);
-	strcat(full_url, path);
-	
-	/* pass some initial options to curl */
-	curl_easy_setopt(curl, CURLOPT_URL, full_url);
-	curl_easy_setopt(curl, CURLOPT_HEADER, 1);
+	str_lower(com);
 	
 	/* handle specific request types */
-	if(strcmp(com, "GET")==0){
-		curl_easy_setopt(curl, CURLOPT_HTTPGET, 1);
-	} else if(strcmp(com, "POST")==0){
-		curl_easy_setopt(curl, CURLOPT_POST, 1);
-		data = linenoise("...");
-		curl_easy_setopt(curl, CURLOPT_POSTFIELDS, data);
-	} else if (strcmp(com, "HEAD")==0){
-		curl_easy_setopt(curl, CURLOPT_NOBODY, 1);
-	} else if (strcmp(com, "PUT")==0){
-		curl_easy_setopt(curl, CURLOPT_UPLOAD, 1);
-		data = linenoise("...");
-		upbuf.data = data;
-		upbuf.index = 0;
-		upbuf.length = strlen(data);
-		curl_easy_setopt(curl, CURLOPT_READDATA, &upbuf);
-		curl_easy_setopt(curl, CURLOPT_READFUNCTION, handle_upload);
-	} else if(strcmp(com, "DELETE")==0) {
-		curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "DELETE");
-	} else {
-		free(full_url);
-		curl_easy_cleanup(curl);
-		destroy_vector(vec);
-	}
+	if(strcmp(com, "get")==0){
+		prepare_get(curl);
+	} else if(strcmp(com, "post")==0){
+		data = prepare_post(curl);
+	} else if (strcmp(com, "head")==0){
+		prepare_head(curl);
+	} else if (strcmp(com, "put")==0){
+		data = prepare_put(curl, &upbuf);
+	} else if(strcmp(com, "delete")==0) {
+		prepare_delete(curl);
+	} else if (strcmp(com, "setheader")==0){
+		perform = 0;
+		setheader(vec);
+	} else if(strcmp(com, "getheader")==0){
+		perform = 0;
+		getheader(vec);
+	} else if(strcmp(com, "delheader")==0){
+		perform = 0;
+		delheader(vec);
+	} else perform = 0;
 	
-	curl_easy_perform(curl);
-	/* print a newline incase the response has no ending newline */
-	printf("\n");
+	if(perform){
+		path = vector_get(vec, 1);
+		perform_request(curl, url, path);
+	}
 	
 	/* free data if needed */
 	if(data != NULL)
 		free(data);
-	/* clean up everything else */
+	
+	destroy_vector(vec);
+	curl_easy_cleanup(curl);
+}
+
+void request_cleanup(char * full_url, CURL * curl, vector * vec){
 	free(full_url);
 	curl_easy_cleanup(curl);
 	destroy_vector(vec);

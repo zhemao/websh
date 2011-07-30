@@ -1,8 +1,12 @@
+#include "map.h"
+
 typedef struct{
 	char * data;
 	int index;
 	int length;
 } upload_buffer;
+
+map * headers;
 
 /* take input for a POST or PUT command from linenoise */
 void handle_input(char * url, char * input);
