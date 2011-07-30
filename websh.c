@@ -19,6 +19,8 @@ int main(int argc, char *argv[]) {
 	url = argv[1];
 	char prompt[strlen(url)+3];
 	sprintf(prompt, "%s> ", url);
+	
+	linenoiseSetCompletionCallback(completionCallback);
 
 	while((line = linenoise(prompt)) != NULL) {
 		if(strcmp(line, "exit")==0)
@@ -206,8 +208,33 @@ void handle_input(char * url, char * input){
 	curl_easy_cleanup(curl);
 }
 
-void request_cleanup(char * full_url, CURL * curl, vector * vec){
-	free(full_url);
-	curl_easy_cleanup(curl);
-	destroy_vector(vec);
+void completionCallback(const char * input, linenoiseCompletions * lc){
+	int len = strlen(input);
+	char temp[len+1];
+	strcpy(temp, input);
+	str_lower(temp);
+	if(len < 3){
+		if(temp[0]=='g')
+			linenoiseAddCompletion(lc, "get ");
+		else if(temp[0]=='p' && len>1){
+			if(temp[1]=='u')
+				linenoiseAddCompletion(lc, "put ");
+			else if(temp[1]=='o')
+				linenoiseAddCompletion(lc, "post ");
+		}
+		else if(temp[0]=='d')
+			linenoiseAddCompletion(lc, "delete ");
+		else if(temp[0]=='h')
+			linenoiseAddCompletion(lc, "head ");
+		else if(temp[0]=='e')
+			linenoiseAddCompletion(lc, "exit");
+	}
+	else if(len < 10){
+		if(strncmp(temp, "get", 3)==0)
+			linenoiseAddCompletion(lc, "getheader ");
+		else if(strncmp(temp, "set", 3)==0)
+			linenoiseAddCompletion(lc, "setheader ");
+		else if(strncmp(temp, "del", 3)==0)
+			linenoiseAddCompletion(lc, "delheader ");
+	}
 }
